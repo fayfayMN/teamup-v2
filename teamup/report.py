@@ -110,3 +110,52 @@ def agreement_html(title: str, md: str) -> str:
     return wrap_html(title, md_to_html(md),
                      footer="Made with TeamUp · free, key-less, and yours to edit. "
                             "Open in a browser and print to PDF to save a copy.")
+
+
+_SEV = {"high": ("#A32D2D", "#FCEBEB"), "med": ("#8A5A00", "#FDF3E0"),
+        "low": ("#20223F", "#EFF1FB")}
+
+
+def team_report_html(team_name: str, scenario: dict, coached: dict) -> str:
+    """Downloadable 'Team plan' for a fixed team: scores explained, who owns what,
+    and how to make the best of the hand you have."""
+    e = html.escape
+    b: List[str] = []
+    b.append(f"<h1>Team plan — {e(team_name or 'our team')}</h1>")
+    b.append(f"<p><strong>{e(scenario['label'])}</strong> · "
+             f"{len(coached['summary']['members'])} people</p>")
+    b.append(f"<p><em>Watch out for:</em> {e(scenario['top_risk'])}</p>")
+    b.append(f"<p><em>Do this:</em> {e(scenario['emphasis'])}</p>")
+
+    b.append("<h2>How your team scored</h2><ul>")
+    for line in coached["explanations"]:
+        b.append(f"<li>{e(line)}</li>")
+    b.append("</ul>")
+    if coached.get("size_note"):
+        b.append(f"<p><em>{e(coached['size_note'])}</em></p>")
+
+    b.append("<h2>Who owns what (day one)</h2>")
+    b.append("<table><tr><th>Role</th><th>Owner</th><th>Note</th></tr>")
+    for a in coached["assignments"]:
+        owner = a["owner"] or "— recruit / drop —"
+        tag = " <strong>(stretch)</strong>" if a["stretch"] else ""
+        b.append(f"<tr><td>{e(a['role'])}</td><td>{e(owner)}{tag}</td>"
+                 f"<td>{e(a['why'])}</td></tr>")
+    b.append("</table>")
+
+    if coached["advice"]:
+        b.append("<h2>Make the best of it</h2>")
+        for ad in coached["advice"]:
+            color, bg = _SEV.get(ad["sev"], _SEV["low"])
+            b.append(f"<p style='background:{bg};border-radius:6px;padding:8px 12px'>"
+                     f"<strong style='color:{color}'>{e(ad['title'])}:</strong> "
+                     f"{e(ad['body'])}</p>")
+
+    from teamup.comm import style as _cstyle
+    cs = _cstyle(coached["comm"]["style"])
+    b.append("<h2>How to communicate</h2>")
+    b.append(f"<p><strong>Recommended: {e(cs['name'])}</strong> — {e(coached['comm']['why'])}</p>")
+
+    return wrap_html(f"Team plan — {team_name or 'our team'}", "\n".join(b),
+                     footer="Made with TeamUp · free, key-less, deterministic (no AI guessing). "
+                            "Open in a browser and print to PDF to save a copy.")
