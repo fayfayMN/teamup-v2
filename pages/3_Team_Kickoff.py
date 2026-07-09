@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import streamlit as st
 
 from teamup.comm import STYLES as COMM_STYLES, DIRECTNESS, recommend, style as comm_style
+from teamup.report import agreement_html
 from teamup.store import init_state
 
 st.set_page_config(page_title="Team Kickoff · TeamUp", page_icon="🚀", layout="wide")
@@ -191,7 +192,21 @@ if st.button("Generate working agreement", type="primary"):
         "the review date above._",
     ]
     md = "\n".join(lines)
-    st.success("Copy this, paste it in your team channel, and have everyone react ✅.")
+    st.success("Copy this, paste it in your team channel, and have everyone react ✅ — "
+               "or download it below to keep and print.")
+
+    slug = (team_name or "our-team").lower().strip().replace(" ", "-")
+    dl1, dl2 = st.columns(2)
+    dl1.download_button(
+        "📄 Download (HTML — opens in browser, print to PDF)",
+        data=agreement_html(f"Working agreement — {team_name or 'our team'}", md),
+        file_name=f"working-agreement-{slug}.html", mime="text/html",
+        use_container_width=True)
+    dl2.download_button(
+        "⬇️ Download (Markdown — paste anywhere)",
+        data=md, file_name=f"working-agreement-{slug}.md",
+        mime="text/markdown", use_container_width=True)
+
     st.code(md, language="markdown")
 
     unassigned = [r for r, who in owners.items() if not who]
