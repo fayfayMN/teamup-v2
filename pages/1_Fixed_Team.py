@@ -3,7 +3,7 @@ you HAVE: explain the scores, assign who owns what, and coach the gaps."""
 
 import streamlit as st
 
-from teamup.match import Profile, SKILLS, COMMITMENT, coach_team
+from teamup.match import Profile, SKILLS, SKILL_TO_ROLE, COMMITMENT, coach_team
 from teamup.report import team_report_html
 from teamup import scenarios
 from teamup.comm import style as comm_style
@@ -51,13 +51,26 @@ with left:
     with st.form("add_member", clear_on_submit=True):
         name = st.text_input("Name")
         skills = st.multiselect("What they're good at", SKILLS)
+        skills_other = st.text_input(
+            "Other strengths not listed (optional)",
+            placeholder="e.g. Legal, Video editing, Hardware — comma-separated")
         learn = st.multiselect("What they want to learn (optional)", SKILLS)
-        avail = st.multiselect("When they're free", SLOTS)
+        avail_preset = st.multiselect("When they're free", SLOTS)
+        avail_custom = st.text_input(
+            "Other times (optional)",
+            placeholder="e.g. Weekday mornings, Fri afternoon, anytime after 9pm")
         commit = st.select_slider("How serious are they?", options=list(COMMITMENT),
                                   format_func=lambda k: COMMITMENT[k], value=2)
         if st.form_submit_button("➕ Add to team") and name:
+            # Merge preset picks with any free-text extras (comma-separated).
+            all_skills = list(skills)
+            if skills_other.strip():
+                all_skills += [s.strip() for s in skills_other.split(",") if s.strip()]
+            avail = list(avail_preset)
+            if avail_custom.strip():
+                avail += [s.strip() for s in avail_custom.split(",") if s.strip()]
             st.session_state.fixed_team.append(Profile(
-                id=f"ft{len(st.session_state.fixed_team)+1}", name=name, skills=skills,
+                id=f"ft{len(st.session_state.fixed_team)+1}", name=name, skills=all_skills,
                 wants_to_learn=learn, availability=avail or ["flexible"], commitment=commit))
             st.rerun()
 
@@ -77,7 +90,10 @@ with right:
         st.info("Add teammates on the left, or load a sample.")
     for i, m in enumerate(team):
         cols = st.columns([5, 1])
-        cols[0].write(f"**{m.name}** — {', '.join(sorted(m.roles())) or 'no role tags'} · "
+        # Roles from mapped skills, plus any free-text "other" strengths so they show.
+        extras = [s for s in m.skills if s not in SKILL_TO_ROLE]
+        tags = sorted(m.roles()) + [f"+{e}" for e in extras]
+        cols[0].write(f"**{m.name}** — {', '.join(tags) or 'no role tags'} · "
                       f"{COMMITMENT[m.commitment]}")
         if cols[1].button("✕", key=f"rm{i}"):
             st.session_state.fixed_team.pop(i)
