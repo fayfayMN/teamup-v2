@@ -2,20 +2,25 @@
 
 import streamlit as st
 
-from teamup.store import init_state, save, demo_pool
+from teamup.store import (init_state, room_sidebar, add_profile, add_many,
+                          clear_room, remove_profile, is_organizer, demo_pool)
+from teamup.report import roster_csv
 from teamup.match import Profile, SKILLS, COMMITMENT
 
 st.set_page_config(page_title="Join · TeamUp", page_icon="✍️", layout="wide")
 init_state(st)
+room_sidebar(st)
 
 st.title("✍️ Join the pool")
 st.caption("Be honest about availability and commitment — mismatched stakes is the "
            "single biggest silent team killer.")
+st.caption(f"You're joining room **{st.session_state.room}** — everyone on this code "
+           "shares one pool.")
 
 SLOTS = ["Mon evening", "Tue evening", "Wed evening", "Thu evening",
          "Fri evening", "Sat daytime", "Sun daytime"]
 
-with st.form("join"):
+with st.form("join", clear_on_submit=True):
     name = st.text_input("Name")
     skills = st.multiselect("What you're good at (pick your real strengths)", SKILLS)
     learn = st.multiselect("What you want to learn (optional)", SKILLS)
@@ -52,12 +57,16 @@ if submitted:
             avail = ["flexible"]
 
         pid = f"p{len(st.session_state.pool) + 1}_{name.lower().replace(' ', '')}"
-        st.session_state.pool.append(Profile(
+        ok = add_profile(st, Profile(
             id=pid, name=name, skills=skills, wants_to_learn=learn,
             availability=avail, hours_per_week=hours, commitment=commit,
         ))
-        save(st)
-        st.success(f"Added {name}. Head to **Match** to form teams.")
+        if ok:
+            st.success(f"Added {name} to room {st.session_state.room}. "
+                       "Head to **Match** to form teams.")
+        else:
+            st.warning(f"Someone named **{name}** is already in this room. "
+                       "Use a distinct name (add an initial) if that's not you.")
 
 st.divider()
 st.markdown("#### Current pool")
@@ -65,15 +74,14 @@ st.markdown("#### Current pool")
 # Demo / reset controls. A real deployment starts empty — these are opt-in.
 bc1, bc2, _ = st.columns([1, 1, 2])
 if bc1.button("Load demo data", help="Add 8 sample people to try matching"):
-    have = {p.id for p in st.session_state.pool}
-    st.session_state.pool.extend(p for p in demo_pool() if p.id not in have)
-    save(st)
+    add_many(st, demo_pool())
     st.rerun()
 if bc2.button("Clear pool", help="Remove everyone (real and demo)"):
-    st.session_state.pool = []
-    st.session_state.teams_locked = []
-    save(st)
-    st.rerun()
+    if is_organizer(st):
+        clear_room(st)
+        st.rerun()
+    else:
+        st.error("Clearing is organizer-only. Unlock in the sidebar.")
 
 if not st.session_state.pool:
     st.caption("Empty — add real people above, or load demo data to try it out.")
@@ -88,3 +96,19 @@ else:
         } for p in st.session_state.pool],
         use_container_width=True, hide_index=True,
     )
+
+    # Download the roster, and let anyone remove their own (mistaken) entry.
+    dl, rm = st.columns([1, 2])
+    dl.download_button(
+        "⬇️ Download roster (CSV)",
+        data=roster_csv(st.session_state.pool),
+        file_name=f"teamup-roster-{st.session_state.room}.csv",
+        mime="text/csv", use_container_width=True,
+    )
+    with rm:
+        names = {p.name: p.id for p in st.session_state.pool}
+        who = st.selectbox("Remove an entry (e.g. a mistake or a no-show)",
+                           ["—"] + list(names))
+        if who != "—" and st.button(f"Remove {who}"):
+            remove_profile(st, names[who])
+            st.rerun()

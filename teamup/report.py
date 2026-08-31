@@ -12,9 +12,47 @@ single source of truth and no second copy to drift.
 
 from __future__ import annotations
 
+import csv
 import html
+import io
 import re
 from typing import List
+
+from teamup.match import COMMITMENT, REQUIRED_ROLES
+
+
+def roster_csv(pool: list) -> str:
+    """The room's people as a downloadable CSV (one row per person)."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Name", "Roles", "Skills", "Wants to learn",
+                "Availability", "Hours/week", "Commitment"])
+    for p in pool:
+        w.writerow([
+            p.name, "; ".join(sorted(p.roles())), "; ".join(p.skills),
+            "; ".join(p.wants_to_learn), "; ".join(p.availability),
+            p.hours_per_week, COMMITMENT.get(p.commitment, p.commitment),
+        ])
+    return buf.getvalue()
+
+
+def teams_csv(teams: list) -> str:
+    """Formed teams as a downloadable CSV (one row per person, with team + gaps)."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Team", "Member", "Roles", "Commitment", "Availability",
+                "Team covered roles", "Team missing roles", "Schedule cohesion"])
+    for i, t in enumerate(teams, 1):
+        covered = "; ".join(t.get("covered_roles", []))
+        missing = "; ".join(t.get("missing_roles", [])) or "none"
+        cohesion = f"{t.get('schedule_cohesion', 0):.0%}"
+        for m in t["members"]:
+            w.writerow([
+                f"Team {i}", m.name, "; ".join(sorted(m.roles())),
+                COMMITMENT.get(m.commitment, m.commitment),
+                "; ".join(m.availability), covered, missing, cohesion,
+            ])
+    return buf.getvalue()
 
 _PAGE_CSS = """
 *{box-sizing:border-box}

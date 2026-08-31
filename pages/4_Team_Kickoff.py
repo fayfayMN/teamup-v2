@@ -7,10 +7,11 @@ import streamlit as st
 
 from teamup.comm import STYLES as COMM_STYLES, DIRECTNESS, recommend, style as comm_style
 from teamup.report import agreement_html
-from teamup.store import init_state
+from teamup.store import init_state, room_sidebar
 
 st.set_page_config(page_title="Team Kickoff · TeamUp", page_icon="🚀", layout="wide")
 init_state(st)
+room_sidebar(st)
 
 st.title("🚀 Team Kickoff")
 st.caption("Spend the first 30 minutes on people, not ideas. This produces a working "

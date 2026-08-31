@@ -2,15 +2,34 @@
 
 import streamlit as st
 
-from teamup.store import init_state, save
+from teamup.store import (init_state, room_sidebar, set_locked, is_organizer,
+                          gate_is_on, export_room, import_room)
+from teamup.report import teams_csv
 from teamup.match import form_teams, REQUIRED_ROLES, COMMITMENT
 
 st.set_page_config(page_title="Match · TeamUp", page_icon="🧩", layout="wide")
 init_state(st)
+room_sidebar(st)
 
 st.title("🧩 Match")
 st.caption("Teams are formed to cover every role, share schedules, and align on stakes. "
            "The output isn't just a team — it's the team plus its gaps.")
+
+# Organizer backup / restore — the durable safety net on an ephemeral host.
+with st.expander("🗄️ Organizer: back up / restore this room"):
+    st.caption("The live pool survives app restarts via a local backup, but a full "
+               "redeploy/sleep can wipe it. Download a copy now; re-upload to restore.")
+    st.download_button("⬇️ Download room backup (JSON)", data=export_room(st),
+                       file_name=f"teamup-room-{st.session_state.room}.json",
+                       mime="application/json")
+    up = st.file_uploader("Restore from a backup file", type="json")
+    if up is not None and st.button("Restore this room from file"):
+        if is_organizer(st):
+            n = import_room(st, up.getvalue())
+            st.success(f"Restored {n} people into room {st.session_state.room}.")
+            st.rerun()
+        else:
+            st.error("Restore is organizer-only. Unlock in the sidebar.")
 
 size = st.slider("Target team size", 2, 6, 4)
 
@@ -18,7 +37,11 @@ if len(st.session_state.pool) < 2:
     st.warning("Add at least 2 people on the Join page first.")
     st.stop()
 
-if st.button("Form teams", type="primary"):
+can_form = is_organizer(st)
+if not can_form:
+    st.info("🔒 Forming/locking teams is organizer-only. Unlock in the sidebar to proceed.")
+
+if st.button("Form teams", type="primary", disabled=not can_form):
     st.session_state._teams = form_teams(st.session_state.pool, team_size=size)
 
 teams = st.session_state.get("_teams")
@@ -57,9 +80,12 @@ for i, t in enumerate(teams, 1):
                 st.write(f"- **{m.name}** — {', '.join(sorted(m.roles())) or 'no role tags'} "
                          f"· {COMMITMENT[m.commitment]} · {', '.join(m.availability)}")
 
-if st.button("Lock these teams"):
-    st.session_state.teams_locked = [
-        [m.name for m in t["members"]] for t in teams
-    ]
-    save(st)
+# Download the proposed teams so the organizer can share them anywhere.
+st.download_button(
+    "⬇️ Download teams (CSV)", data=teams_csv(teams),
+    file_name=f"teamup-teams-{st.session_state.room}.csv", mime="text/csv",
+)
+
+if st.button("Lock these teams", disabled=not can_form):
+    set_locked(st, [[m.name for m in t["members"]] for t in teams])
     st.success("Teams locked. Each team should run the Team Kickoff next.")

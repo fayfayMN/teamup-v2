@@ -10,11 +10,12 @@ Run locally:
 
 import streamlit as st
 
-from teamup.store import init_state
+from teamup.store import init_state, room_sidebar
 from teamup.match import REQUIRED_ROLES, COMMITMENT
 
 st.set_page_config(page_title="TeamUp", page_icon="🤝", layout="wide")
 init_state(st)
+room_sidebar(st)
 
 st.title("🤝 TeamUp")
 st.caption("Form healthy teams for high-stakes competitions and projects — matched on "
@@ -26,8 +27,9 @@ c1.metric("People in pool", len(st.session_state.pool))
 c2.metric("Roles a team needs", len(REQUIRED_ROLES))
 c3.metric("Teams locked", len(st.session_state.get("teams_locked", [])))
 
-st.info("Matching is deterministic and explainable — no API key, no cost. "
-        "Data persists to `teamup_state.json`.", icon="🔒")
+st.info("Matching is deterministic and explainable — no API key, no cost. Everyone on the "
+        "same **room code** (sidebar) shares one pool; the organizer can back it up and "
+        "download every output.", icon="🔒")
 
 st.divider()
 st.markdown(

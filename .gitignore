@@ -6,6 +6,7 @@ venv/
 
 # Persisted state (runtime data, not source)
 teamup_state.json
+teamup_rooms/
 
 # Secrets — never commit
 .streamlit/secrets.toml

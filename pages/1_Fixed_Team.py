@@ -7,10 +7,11 @@ from teamup.match import Profile, SKILLS, SKILL_TO_ROLE, COMMITMENT, coach_team
 from teamup.report import team_report_html
 from teamup import scenarios
 from teamup.comm import style as comm_style
-from teamup.store import init_state
+from teamup.store import init_state, room_sidebar
 
 st.set_page_config(page_title="Fixed Team · TeamUp", page_icon="🧭", layout="wide")
 init_state(st)
+room_sidebar(st)
 st.session_state.setdefault("fixed_team", [])
 
 st.title("🧭 Make our team work")

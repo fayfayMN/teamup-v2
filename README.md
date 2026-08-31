@@ -56,6 +56,37 @@ free riders and credit-takers.
 
 ---
 
+## Running it for a real competition (organizer notes)
+
+**One shared pool via room codes.** Everyone who enters the same **room code**
+(sidebar, e.g. `MUDAC26`) joins one shared pool — so a whole cohort's joins show
+up for the organizer on the Match page. Use a fresh code per event so last time's
+pool never leaks in. The pool is shared in-memory across all users on the app's
+(single) Streamlit Community Cloud replica.
+
+**Lock forming/clearing to the organizer.** Set an `organizer_pass` in the app's
+Streamlit secrets (Manage app → Settings → Secrets):
+
+```toml
+organizer_pass = "choose-something"
+```
+
+With it set, participants can still **Join**, but only someone who unlocks in the
+sidebar can **Form / Lock / Clear / Restore** teams. With no passphrase set, the
+app stays fully open (a note says so).
+
+**Download everything.**
+- **Join** → *Download roster (CSV)*
+- **Match** → *Download teams (CSV)*, plus *Organizer: back up / restore this room*
+  (download the whole room as JSON and re-upload to restore)
+- **Team Kickoff** → download the working agreement (HTML or Markdown)
+
+**Durability note.** The pool survives app *restarts* via an on-disk backup, but a
+full redeploy/sleep on the free tier can wipe it. Before/near the event, click
+**Download room backup (JSON)** on the Match page; re-upload it to restore instantly.
+
+---
+
 ## After the competition
 
 Each team member can use **Clearwork** to turn their tracked contributions into
