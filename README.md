@@ -4,7 +4,7 @@ Form a great team for your competition or project — matched on complementary
 skills, shared availability, and aligned commitment. Takes about 10 minutes
 from "strangers" to "we have a working agreement."
 
-**👉 Open the app: https://teamup-frsxgpqc2hqw8wizwsq8rs.streamlit.app**
+**👉 Open the app: [https://teamup-frsxgpqc2hqw8wizwsq8rs.streamlit.app](https://teamup-v2-arbppub2gxhxtwqlmx6p8g.streamlit.app/)**
 
 > **This is Version 2** — the current, recommended app. It adds shared
 > room-scoped pools, an organizer gate, broad availability buckets (weekday /
