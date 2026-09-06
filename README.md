@@ -1,10 +1,18 @@
-# 🤝 TeamUp
+# 🤝 TeamUp — Version 2
 
 Form a great team for your competition or project — matched on complementary
 skills, shared availability, and aligned commitment. Takes about 10 minutes
 from "strangers" to "we have a working agreement."
 
 **👉 Open the app: https://teamup-frsxgpqc2hqw8wizwsq8rs.streamlit.app**
+
+> **This is Version 2** — the current, recommended app. It adds shared
+> room-scoped pools, an organizer gate, broad availability buckets (weekday /
+> weekend × morning / daytime / evening) instead of a fiddly day-by-day grid,
+> and downloadable outputs on every page (roster CSV, room backup JSON, team
+> plan HTML, working agreement HTML/Markdown).
+> The original prototype (v1) is archived at
+> [github.com/fayfayMN/teamup](https://github.com/fayfayMN/teamup).
 
 ---
 

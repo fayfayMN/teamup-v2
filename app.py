@@ -18,6 +18,9 @@ init_state(st)
 room_sidebar(st)
 
 st.title("🤝 TeamUp")
+st.caption("**Version 2** · shared room-scoped pools, organizer controls, broad "
+           "availability buckets, and downloadable outputs on every page. "
+           "The original (v1) lives at github.com/fayfayMN/teamup.")
 st.caption("Form healthy teams for high-stakes competitions and projects — matched on "
            "complementary skills, shared availability, and aligned commitment. Then a "
            "guided kickoff sets the team up to actually work well.")
