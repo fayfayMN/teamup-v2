@@ -3,7 +3,8 @@ you HAVE: explain the scores, assign who owns what, and coach the gaps."""
 
 import streamlit as st
 
-from teamup.match import Profile, SKILLS, SKILL_TO_ROLE, COMMITMENT, coach_team
+from teamup.match import (Profile, SKILLS, SKILL_TO_ROLE, COMMITMENT,
+                          AVAILABILITY, coach_team)
 from teamup.report import team_report_html
 from teamup import scenarios
 from teamup.comm import style as comm_style
@@ -19,20 +20,17 @@ st.caption("Already stuck with a group — an assigned class team, the squad you
            "the volunteers who showed up? Enter who you've got and we'll make the best team "
            "possible from it: who should own what, where the gaps are, and how to close them.")
 
-SLOTS = ["Mon evening", "Tue evening", "Wed evening", "Thu evening",
-         "Fri evening", "Sat daytime", "Sun daytime"]
-
-
 def _sample():
     """A realistic, deliberately gappy team: strong build, no designer, one coaster."""
     return [
         Profile("ft1", "Ana", skills=["Python / coding"], wants_to_learn=["UI/UX design"],
-                availability=["Mon evening", "Sat daytime"], commitment=3),
-        Profile("ft2", "Ben", skills=["Data / ML"], availability=["Sat daytime"], commitment=1),
+                availability=["Weekday evenings", "Weekend daytime"], commitment=3),
+        Profile("ft2", "Ben", skills=["Data / ML"],
+                availability=["Weekend daytime"], commitment=1),
         Profile("ft3", "Cara", skills=["Python / coding", "Project management"],
-                availability=["Mon evening", "Wed evening"], commitment=2),
+                availability=["Weekday evenings"], commitment=2),
         Profile("ft4", "Dan", skills=["Writing / storytelling"],
-                availability=["Sun daytime"], commitment=2),
+                availability=["Weekend daytime"], commitment=2),
     ]
 
 
@@ -56,10 +54,11 @@ with left:
             "Other strengths not listed (optional)",
             placeholder="e.g. Legal, Video editing, Hardware — comma-separated")
         learn = st.multiselect("What they want to learn (optional)", SKILLS)
-        avail_preset = st.multiselect("When they're free", SLOTS)
+        avail_preset = st.multiselect(
+            "When they're free — broad times are fine", AVAILABILITY)
         avail_custom = st.text_input(
-            "Other times (optional)",
-            placeholder="e.g. Weekday mornings, Fri afternoon, anytime after 9pm")
+            "Anything more specific? (optional)",
+            placeholder="e.g. Fri afternoons, anytime after 9pm")
         commit = st.select_slider("How serious are they?", options=list(COMMITMENT),
                                   format_func=lambda k: COMMITMENT[k], value=2)
         if st.form_submit_button("➕ Add to team") and name:

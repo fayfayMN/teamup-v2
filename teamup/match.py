@@ -64,6 +64,21 @@ REQUIRED_ROLES = ["Build", "Design", "Pitch", "Organize"]
 # Commitment is the #1 silent team killer when mismatched.
 COMMITMENT = {1: "Here to learn", 2: "Will contribute", 3: "Here to win"}
 
+# Availability is matched as set overlap (Jaccard), so broad buckets beat a
+# day-by-day grid: they're faster to pick and far more likely to overlap. Keep
+# this the single source of truth — the Join/Fixed-Team pages and demo data all
+# read from it, so the vocabulary always agrees.
+AVAILABILITY = [
+    "Weekday mornings",
+    "Weekday daytime",
+    "Weekday evenings",
+    "Weekend mornings",
+    "Weekend daytime",
+    "Weekend evenings",
+    "Late nights",
+    "Flexible / anytime",
+]
+
 
 @dataclass
 class Profile:

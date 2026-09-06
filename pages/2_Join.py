@@ -5,7 +5,7 @@ import streamlit as st
 from teamup.store import (init_state, room_sidebar, add_profile, add_many,
                           clear_room, remove_profile, is_organizer, demo_pool)
 from teamup.report import roster_csv
-from teamup.match import Profile, SKILLS, COMMITMENT
+from teamup.match import Profile, SKILLS, COMMITMENT, AVAILABILITY
 
 st.set_page_config(page_title="Join · TeamUp", page_icon="✍️", layout="wide")
 init_state(st)
@@ -17,23 +17,20 @@ st.caption("Be honest about availability and commitment — mismatched stakes is
 st.caption(f"You're joining room **{st.session_state.room}** — everyone on this code "
            "shares one pool.")
 
-SLOTS = ["Mon evening", "Tue evening", "Wed evening", "Thu evening",
-         "Fri evening", "Sat daytime", "Sun daytime"]
-
 with st.form("join", clear_on_submit=True):
     name = st.text_input("Name")
     skills = st.multiselect("What you're good at (pick your real strengths)", SKILLS)
     learn = st.multiselect("What you want to learn (optional)", SKILLS)
 
-    st.markdown("**When you're available**")
+    st.markdown("**When you're available** — tick the broad times that fit; no need to be exact")
     avail_preset = st.multiselect(
-        "Common slots — tick all that apply",
-        SLOTS,
+        "When you're available",
+        AVAILABILITY,
         label_visibility="collapsed",
     )
     avail_custom = st.text_input(
-        "Other times (optional)",
-        placeholder="e.g. Weekday mornings, Fri afternoon, anytime after 9pm",
+        "Anything more specific? (optional)",
+        placeholder="e.g. Fri afternoons, anytime after 9pm",
     )
 
     hours = st.slider("Hours per week you can commit", 1, 40, 8)
