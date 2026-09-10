@@ -109,7 +109,15 @@ def init_state(st) -> None:
     joins made by other people.
     """
     ss = st.session_state
-    ss.setdefault("room", DEFAULT_ROOM)
+    # First load can be seeded from a shareable link, e.g. ?room=MUDAC26 — this
+    # is what lets a QR code drop people straight into the right room.
+    if "room" not in ss:
+        qp_room = None
+        try:
+            qp_room = st.query_params.get("room")
+        except Exception:
+            qp_room = None
+        ss.room = _clean_code(qp_room) if qp_room else DEFAULT_ROOM
     ss.setdefault("is_organizer", False)
     with _lock():
         room = _ensure_room(ss.room)
@@ -249,6 +257,11 @@ def room_sidebar(st) -> None:
         cleaned = _clean_code(code)
         if cleaned != st.session_state.room:
             st.session_state.room = cleaned
+            # Keep the URL in sync so this page stays shareable/bookmarkable.
+            try:
+                st.query_params["room"] = cleaned
+            except Exception:
+                pass
             st.rerun()
         st.caption(f"**{room_count(st.session_state.room)}** in room "
                    f"`{st.session_state.room}`")
