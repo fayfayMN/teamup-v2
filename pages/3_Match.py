@@ -46,13 +46,28 @@ mode = st.radio(
 balanced = mode.startswith("⚖️")
 
 if balanced:
-    default_teams = max(2, round(n_people / 4))
-    n_teams = st.number_input("How many teams?", min_value=1, max_value=n_people,
-                              value=min(default_teams, n_people), step=1)
-    lo, hi = divmod(n_people, n_teams)
-    st.caption(f"{n_people} people → **{n_teams} teams** of "
-               f"{lo if hi == 0 else lo}–{lo + 1 if hi else lo} each, matched to score "
-               "within a hair of one another.")
+    how = st.radio(
+        "How should I decide the number of teams?",
+        ["Aim for a team size — adapts to however many actually show up",
+         "I know exactly how many teams I want"],
+        index=0,
+        help="If sign-ups are open-ended, pick a team size and the app makes as many "
+             "teams as the final headcount needs — no math on your end.",
+    )
+    if how.startswith("Aim"):
+        per = st.slider("Aim for about this many people per team", 2, 8, 5)
+        n_teams = max(1, -(-n_people // per))   # ceil: keeps every team at or below `per`
+    else:
+        default_teams = min(max(2, round(n_people / 4)), n_people)
+        n_teams = int(st.number_input("How many teams?", min_value=1,
+                                      max_value=n_people, value=default_teams, step=1))
+
+    base, extra = divmod(n_people, n_teams)
+    smallest, largest = base, base + (1 if extra else 0)
+    size_desc = f"{smallest}" if smallest == largest else f"{smallest}–{largest}"
+    st.caption(f"**{n_people} people in the pool → {n_teams} balanced teams** of "
+               f"{size_desc} each. The split re-adapts to whoever's joined — just click "
+               "**Form teams** again after the last person is in.")
 else:
     size = st.slider("Target team size", 2, 6, 4)
     st.caption(f"{n_people} people → about {-(-n_people // size)} teams of {size}.")
