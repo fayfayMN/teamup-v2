@@ -5,7 +5,8 @@ import streamlit as st
 from teamup.store import (init_state, room_sidebar, set_locked, is_organizer,
                           gate_is_on, export_room, import_room)
 from teamup.report import teams_csv
-from teamup.match import form_teams, REQUIRED_ROLES, COMMITMENT
+from teamup.match import (form_teams, form_balanced_teams, _team_quality,
+                          REQUIRED_ROLES, COMMITMENT)
 
 st.set_page_config(page_title="Match · TeamUp", page_icon="🧩", layout="wide")
 init_state(st)
@@ -31,23 +32,62 @@ with st.expander("🗄️ Organizer: back up / restore this room"):
         else:
             st.error("Restore is organizer-only. Unlock in the sidebar.")
 
-size = st.slider("Target team size", 2, 6, 4)
-
-if len(st.session_state.pool) < 2:
+n_people = len(st.session_state.pool)
+if n_people < 2:
     st.warning("Add at least 2 people on the Join page first.")
     st.stop()
+
+mode = st.radio(
+    "How should we split the pool?",
+    ["⚖️ Even & balanced — every team about equally strong (best for a class)",
+     "🎯 Best-fit — build the strongest teams first"],
+    index=0,
+)
+balanced = mode.startswith("⚖️")
+
+if balanced:
+    default_teams = max(2, round(n_people / 4))
+    n_teams = st.number_input("How many teams?", min_value=1, max_value=n_people,
+                              value=min(default_teams, n_people), step=1)
+    lo, hi = divmod(n_people, n_teams)
+    st.caption(f"{n_people} people → **{n_teams} teams** of "
+               f"{lo if hi == 0 else lo}–{lo + 1 if hi else lo} each, matched to score "
+               "within a hair of one another.")
+else:
+    size = st.slider("Target team size", 2, 6, 4)
+    st.caption(f"{n_people} people → about {-(-n_people // size)} teams of {size}.")
 
 can_form = is_organizer(st)
 if not can_form:
     st.info("🔒 Forming/locking teams is organizer-only. Unlock in the sidebar to proceed.")
 
 if st.button("Form teams", type="primary", disabled=not can_form):
-    st.session_state._teams = form_teams(st.session_state.pool, team_size=size)
+    if balanced:
+        st.session_state._teams = form_balanced_teams(st.session_state.pool, int(n_teams))
+    else:
+        st.session_state._teams = form_teams(st.session_state.pool, team_size=size)
 
 teams = st.session_state.get("_teams")
 if not teams:
     st.info("Click **Form teams** to generate matches.")
     st.stop()
+
+# Fairness readout — how close in quality the teams are to each other.
+if len(teams) > 1:
+    qs = [_team_quality(t["members"], REQUIRED_ROLES) for t in teams]
+    gap = max(qs) - min(qs)
+    fc1, fc2 = st.columns(2)
+    fc1.metric("Teams formed", len(teams))
+    fc2.metric("Quality gap between teams", f"{gap:.0%}",
+               help="0% = every team scored identically. Lower is fairer. "
+                    "The Even & balanced mode keeps this small.")
+    if gap <= 0.12:
+        st.success("✅ Well balanced — the strongest and weakest teams are very close in quality.")
+    elif gap <= 0.25:
+        st.info("Reasonably balanced. For an even fairer split, use **Even & balanced** mode above.")
+    else:
+        st.warning("⚠️ Uneven — some teams are much stronger than others. "
+                   "Switch to **Even & balanced** mode and re-form for fairer teams.")
 
 for i, t in enumerate(teams, 1):
     with st.container(border=True):

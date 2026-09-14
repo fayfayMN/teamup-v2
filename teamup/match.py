@@ -174,6 +174,101 @@ def form_teams(pool: List[Profile], team_size: int = 4) -> List[Dict]:
     return [summarize_team(t) for t in teams]
 
 
+def _team_quality(team: List[Profile], required: List[str]) -> float:
+    """A single 0–1 'how good is this team' score, so we can compare teams to
+    each other. Blends role coverage, average commitment, and schedule overlap —
+    the same three things summarize_team reports."""
+    if not team:
+        return 0.0
+    covered = set().union(*(m.roles() for m in team))
+    role_frac = len([r for r in required if r in covered]) / len(required)
+    avg_commit = (sum(m.commitment for m in team) / len(team)) / 3.0
+    overlaps = [
+        _jaccard(set(a.availability), set(b.availability))
+        for i, a in enumerate(team) for b in team[i + 1:]
+    ]
+    cohesion = sum(overlaps) / len(overlaps) if overlaps else 1.0
+    return 0.5 * role_frac + 0.3 * avg_commit + 0.2 * cohesion
+
+
+def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
+    """Split the pool into ``n_teams`` teams of *comparable* quality — for a
+    class or cohort where every team should be roughly as strong as the others.
+
+    Unlike ``form_teams`` (which builds the best team first, so the last team is
+    the leftovers), this spreads talent evenly:
+
+    1. Deal people out rarest-role-first / keenest-first, each time to the team
+       that gains the most from them — this scatters scarce roles and keen
+       members across *all* teams instead of clustering them.
+    2. Then swap members between the strongest and weakest teams while that
+       shrinks the gap between them, so the final teams score within a hair of
+       each other.
+    """
+    from collections import Counter
+
+    n_teams = max(1, min(int(n_teams), len(pool))) if pool else 0
+    if n_teams == 0:
+        return []
+
+    # Even target sizes: e.g. 32 into 8 -> all 4; 30 into 8 -> four 4s + four 3s.
+    base, extra = divmod(len(pool), n_teams)
+    caps = [base + (1 if i < extra else 0) for i in range(n_teams)]
+    teams: List[List[Profile]] = [[] for _ in range(n_teams)]
+
+    # How scarce is each role in this pool? Place holders of the rarest roles
+    # first so they get spread out before capacity fills up.
+    supply: Counter = Counter()
+    for p in pool:
+        for r in p.roles():
+            supply[r] += 1
+
+    def rarity(p: Profile) -> int:
+        held = [supply[r] for r in p.roles()]
+        return min(held) if held else 999
+
+    order = sorted(pool, key=lambda p: (rarity(p), -p.commitment, -len(p.roles())))
+
+    for p in order:
+        open_teams = [i for i in range(n_teams) if len(teams[i]) < caps[i]]
+
+        def gain(i: int) -> float:
+            return (_team_quality(teams[i] + [p], REQUIRED_ROLES)
+                    - _team_quality(teams[i], REQUIRED_ROLES))
+
+        # Most marginal gain wins; tie-break toward the emptiest team so sizes stay even.
+        best = max(open_teams, key=lambda i: (gain(i), -len(teams[i])))
+        teams[best].append(p)
+
+    # Local rebalance: swap between the best and worst team while it narrows the gap.
+    def spread() -> float:
+        qs = [_team_quality(t, REQUIRED_ROLES) for t in teams]
+        return max(qs) - min(qs)
+
+    for _ in range(300):
+        qs = [_team_quality(t, REQUIRED_ROLES) for t in teams]
+        hi, lo = qs.index(max(qs)), qs.index(min(qs))
+        if hi == lo:
+            break
+        current = spread()
+        improved = False
+        for a in list(teams[hi]):
+            for b in list(teams[lo]):
+                teams[hi].remove(a); teams[lo].remove(b)
+                teams[hi].append(b); teams[lo].append(a)
+                if spread() < current - 1e-9:
+                    improved = True
+                    break
+                teams[hi].remove(b); teams[lo].remove(a)  # revert
+                teams[hi].append(a); teams[lo].append(b)
+            if improved:
+                break
+        if not improved:
+            break
+
+    return [summarize_team(t) for t in teams]
+
+
 def summarize_team(team: List[Profile], required: List[str] = None) -> Dict:
     required = required or REQUIRED_ROLES
     covered = set().union(*(m.roles() for m in team)) if team else set()
