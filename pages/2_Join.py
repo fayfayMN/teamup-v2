@@ -3,9 +3,11 @@
 import streamlit as st
 
 from teamup.store import (init_state, room_sidebar, add_profile, add_many,
-                          clear_room, remove_profile, is_organizer, demo_pool)
+                          clear_room, remove_profile, is_organizer, demo_pool,
+                          get_track, set_track)
 from teamup.report import roster_csv
-from teamup.match import Profile, SKILLS, COMMITMENT, AVAILABILITY
+from teamup.match import (Profile, COMMITMENT, AVAILABILITY, TRACKS, TRACK_LABELS,
+                          track_key_by_label, skills_for)
 
 st.set_page_config(page_title="Join · TeamUp", page_icon="✍️", layout="wide")
 init_state(st)
@@ -17,10 +19,27 @@ st.caption("Be honest about availability and commitment — mismatched stakes is
 st.caption(f"You're joining room **{st.session_state.room}** — everyone on this code "
            "shares one pool.")
 
+# Goal picker — sets which skill list everyone in this room picks from. Stored on
+# the room so every participant answers the same tailored question.
+cur_track = get_track(st)
+cur_label = TRACKS[cur_track]["label"]
+goal_label = st.selectbox(
+    "What's this team for?  (sets the skills everyone picks from)",
+    TRACK_LABELS, index=TRACK_LABELS.index(cur_label),
+    help="Pick your event type once — the skill list below adapts to it. "
+         "For a data-science competition you'll see EDA, ML, SQL, etc.",
+)
+goal_key = track_key_by_label(goal_label)
+if goal_key != cur_track:
+    set_track(st, goal_key)
+    st.rerun()
+track_skills = skills_for(goal_key)
+st.caption(f"Skills below are tailored for **{goal_label}**.")
+
 with st.form("join", clear_on_submit=True):
     name = st.text_input("Name")
-    skills = st.multiselect("What you're good at (pick your real strengths)", SKILLS)
-    learn = st.multiselect("What you want to learn (optional)", SKILLS)
+    skills = st.multiselect("What you're good at (pick your real strengths)", track_skills)
+    learn = st.multiselect("What you want to learn (optional)", track_skills)
 
     st.markdown("**When you're available** — tick the broad times that fit; no need to be exact")
     avail_preset = st.multiselect(

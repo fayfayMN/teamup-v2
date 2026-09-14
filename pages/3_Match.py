@@ -3,10 +3,10 @@
 import streamlit as st
 
 from teamup.store import (init_state, room_sidebar, set_locked, is_organizer,
-                          gate_is_on, export_room, import_room)
+                          gate_is_on, export_room, import_room, get_track)
 from teamup.report import teams_csv
 from teamup.match import (form_teams, form_balanced_teams, _team_quality,
-                          REQUIRED_ROLES, COMMITMENT)
+                          required_for, TRACKS, COMMITMENT)
 
 st.set_page_config(page_title="Match · TeamUp", page_icon="🧩", layout="wide")
 init_state(st)
@@ -15,6 +15,12 @@ room_sidebar(st)
 st.title("🧩 Match")
 st.caption("Teams are formed to cover every role, share schedules, and align on stakes. "
            "The output isn't just a team — it's the team plus its gaps.")
+
+# The room's goal decides which roles a team should cover (set on the Join page).
+track = get_track(st)
+required = required_for(track)
+st.caption(f"🎯 Goal: **{TRACKS[track]['label']}** — teams aim to cover: "
+           + ", ".join(required) + ". Change it on the **Join** page.")
 
 # Organizer backup / restore — the durable safety net on an ephemeral host.
 with st.expander("🗄️ Organizer: back up / restore this room"):
@@ -78,9 +84,11 @@ if not can_form:
 
 if st.button("Form teams", type="primary", disabled=not can_form):
     if balanced:
-        st.session_state._teams = form_balanced_teams(st.session_state.pool, int(n_teams))
+        st.session_state._teams = form_balanced_teams(
+            st.session_state.pool, int(n_teams), required=required)
     else:
-        st.session_state._teams = form_teams(st.session_state.pool, team_size=size)
+        st.session_state._teams = form_teams(
+            st.session_state.pool, team_size=size, required=required)
 
 teams = st.session_state.get("_teams")
 if not teams:
@@ -89,7 +97,7 @@ if not teams:
 
 # Fairness readout — how close in quality the teams are to each other.
 if len(teams) > 1:
-    qs = [_team_quality(t["members"], REQUIRED_ROLES) for t in teams]
+    qs = [_team_quality(t["members"], required) for t in teams]
     gap = max(qs) - min(qs)
     fc1, fc2 = st.columns(2)
     fc1.metric("Teams formed", len(teams))
@@ -112,7 +120,8 @@ for i, t in enumerate(teams, 1):
         cols = st.columns(3)
         cols[0].metric("Schedule cohesion", f"{t['schedule_cohesion']:.0%}")
         cols[1].metric("Avg commitment", f"{t['avg_commitment']}/3")
-        cols[2].metric("Covered roles", f"{len(t['covered_roles'])}/{len(REQUIRED_ROLES)}")
+        cols[2].metric("Covered roles",
+                       f"{len(required) - len(t['missing_roles'])}/{len(required)}")
 
         st.markdown("**Covered:** " + (", ".join(t["covered_roles"]) or "—"))
 

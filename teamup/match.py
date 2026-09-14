@@ -16,8 +16,13 @@ from typing import Dict, List
 
 from teamup.comm import recommend as comm_recommend
 
-# Each pickable skill maps to the team role it covers.
-SKILL_TO_ROLE: Dict[str, str] = {
+# ── skill catalogs per goal / track ──────────────────────────────────────────────
+# What a team needs differs by what it's FOR, so the skills people pick from differ
+# too. Each catalog maps a pickable skill to the team role it covers; the Join page
+# shows only the catalog for the room's chosen goal (a data-science team is asked
+# about EDA and modeling, not "sales / customer support").
+
+_GENERAL_CATALOG: Dict[str, str] = {
     "Python / coding": "Build",
     "Web / frontend": "Build",
     "Data / ML": "Build",
@@ -33,7 +38,95 @@ SKILL_TO_ROLE: Dict[str, str] = {
     "Community / outreach": "Customer",
 }
 
-SKILLS = list(SKILL_TO_ROLE)
+# Data-science competition — built around the school's actual toolset (SQL, R,
+# Python, GitHub, Colab/Jupyter, ETL, EDA, ML, visualization) plus the delivery
+# skills a winning submission needs. Spread across roles so a team still covers
+# modeling · analysis/stats · visualization · communication · coordination.
+_DATA_SCIENCE_CATALOG: Dict[str, str] = {
+    "Python": "Build",
+    "R": "Research",
+    "SQL / databases": "Ops",
+    "ETL / data pipelines": "Ops",
+    "Data wrangling & cleaning": "Build",
+    "Exploratory data analysis (EDA)": "Research",
+    "Statistics / hypothesis testing": "Research",
+    "Machine learning (ML)": "Build",
+    "Deep learning (NLP / vision)": "Build",
+    "Feature engineering": "Build",
+    "Data visualization / dashboards": "Design",
+    "Domain / business knowledge": "Research",
+    "Storytelling / presenting results": "Pitch",
+    "Technical writing / report": "Pitch",
+    "Jupyter / Google Colab (notebooks)": "Build",
+    "Git / GitHub collaboration": "Organize",
+    "Project coordination / deadlines": "Organize",
+    "Cloud / MLOps / deployment": "Ops",
+}
+
+_BUSINESS_CASE_CATALOG: Dict[str, str] = {
+    "Market / user research": "Research",
+    "Financial modeling": "Research",
+    "Strategy / framework thinking": "Research",
+    "Competitive analysis": "Research",
+    "Data analysis (Excel / SQL)": "Build",
+    "Slide / deck design": "Design",
+    "Storytelling / presenting": "Pitch",
+    "Writing / report": "Pitch",
+    "Project coordination / deadlines": "Organize",
+}
+
+_COURSEWORK_CATALOG: Dict[str, str] = {
+    "Coding / building": "Build",
+    "Data / analysis": "Research",
+    "Writing / documentation": "Pitch",
+    "Presenting / demo": "Pitch",
+    "Design / slides": "Design",
+    "Project coordination": "Organize",
+}
+
+# Goal → its skill catalog and the roles a team of that kind should cover.
+TRACKS: Dict[str, Dict] = {
+    "data_science": {"label": "Data science competition",
+                     "catalog": _DATA_SCIENCE_CATALOG,
+                     "required_roles": ["Build", "Research", "Design", "Pitch", "Organize"]},
+    "business_case": {"label": "Business / case competition",
+                      "catalog": _BUSINESS_CASE_CATALOG,
+                      "required_roles": ["Research", "Design", "Pitch", "Organize"]},
+    "general": {"label": "General / startup / hackathon",
+                "catalog": _GENERAL_CATALOG,
+                "required_roles": ["Build", "Design", "Pitch", "Organize"]},
+    "coursework": {"label": "Coursework project",
+                   "catalog": _COURSEWORK_CATALOG,
+                   "required_roles": ["Build", "Organize", "Pitch"]},
+}
+TRACK_ORDER: List[str] = ["data_science", "business_case", "general", "coursework"]
+DEFAULT_TRACK = "data_science"
+TRACK_LABELS: List[str] = [TRACKS[k]["label"] for k in TRACK_ORDER]
+
+# Union of every catalog, so a Profile's stored skills map to a role no matter
+# which goal they were picked under (rooms/backups can mix, and Fixed-Team shows all).
+SKILL_TO_ROLE: Dict[str, str] = {}
+for _k in TRACK_ORDER:
+    SKILL_TO_ROLE.update(TRACKS[_k]["catalog"])
+
+SKILLS = list(SKILL_TO_ROLE)  # full union — used by the free-form Fixed-Team page
+
+
+def skills_for(track_key: str) -> List[str]:
+    """The pickable skills for a goal (falls back to the default track)."""
+    return list(TRACKS.get(track_key, TRACKS[DEFAULT_TRACK])["catalog"])
+
+
+def required_for(track_key: str) -> List[str]:
+    """The roles a team of this goal should cover."""
+    return list(TRACKS.get(track_key, TRACKS[DEFAULT_TRACK])["required_roles"])
+
+
+def track_key_by_label(label: str) -> str:
+    for k in TRACK_ORDER:
+        if TRACKS[k]["label"] == label:
+            return k
+    return DEFAULT_TRACK
 
 # Plain-English gloss for each role — used in explanations and "how to grow into it" tips.
 ROLE_LABEL: Dict[str, str] = {
@@ -153,9 +246,11 @@ def _marginal_fit(team: List[Profile], cand: Profile) -> float:
     return 0.45 * role_gain + 0.30 * avail + 0.25 * commit
 
 
-def form_teams(pool: List[Profile], team_size: int = 4) -> List[Dict]:
+def form_teams(pool: List[Profile], team_size: int = 4,
+               required: List[str] = None) -> List[Dict]:
     """Greedily partition the pool into teams, maximizing role coverage,
     schedule overlap, and aligned commitment."""
+    required = required or REQUIRED_ROLES
     remaining = list(pool)
     # Seed with the least flexible (fewest roles, narrowest schedule) so they
     # aren't left as awkward leftovers at the end.
@@ -171,7 +266,7 @@ def form_teams(pool: List[Profile], team_size: int = 4) -> List[Dict]:
             remaining.remove(best)
         teams.append(team)
 
-    return [summarize_team(t) for t in teams]
+    return [summarize_team(t, required) for t in teams]
 
 
 def _team_quality(team: List[Profile], required: List[str]) -> float:
@@ -191,7 +286,8 @@ def _team_quality(team: List[Profile], required: List[str]) -> float:
     return 0.5 * role_frac + 0.3 * avg_commit + 0.2 * cohesion
 
 
-def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
+def form_balanced_teams(pool: List[Profile], n_teams: int,
+                        required: List[str] = None) -> List[Dict]:
     """Split the pool into ``n_teams`` teams of *comparable* quality — for a
     class or cohort where every team should be roughly as strong as the others.
 
@@ -207,6 +303,7 @@ def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
     """
     from collections import Counter
 
+    required = required or REQUIRED_ROLES
     n_teams = max(1, min(int(n_teams), len(pool))) if pool else 0
     if n_teams == 0:
         return []
@@ -233,8 +330,8 @@ def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
         open_teams = [i for i in range(n_teams) if len(teams[i]) < caps[i]]
 
         def gain(i: int) -> float:
-            return (_team_quality(teams[i] + [p], REQUIRED_ROLES)
-                    - _team_quality(teams[i], REQUIRED_ROLES))
+            return (_team_quality(teams[i] + [p], required)
+                    - _team_quality(teams[i], required))
 
         # Most marginal gain wins; tie-break toward the emptiest team so sizes stay even.
         best = max(open_teams, key=lambda i: (gain(i), -len(teams[i])))
@@ -242,11 +339,11 @@ def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
 
     # Local rebalance: swap between the best and worst team while it narrows the gap.
     def spread() -> float:
-        qs = [_team_quality(t, REQUIRED_ROLES) for t in teams]
+        qs = [_team_quality(t, required) for t in teams]
         return max(qs) - min(qs)
 
     for _ in range(300):
-        qs = [_team_quality(t, REQUIRED_ROLES) for t in teams]
+        qs = [_team_quality(t, required) for t in teams]
         hi, lo = qs.index(max(qs)), qs.index(min(qs))
         if hi == lo:
             break
@@ -266,7 +363,7 @@ def form_balanced_teams(pool: List[Profile], n_teams: int) -> List[Dict]:
         if not improved:
             break
 
-    return [summarize_team(t) for t in teams]
+    return [summarize_team(t, required) for t in teams]
 
 
 def summarize_team(team: List[Profile], required: List[str] = None) -> Dict:

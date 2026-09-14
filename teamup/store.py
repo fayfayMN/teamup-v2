@@ -30,7 +30,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from teamup.match import Profile
+from teamup.match import Profile, DEFAULT_TRACK
 
 DEFAULT_ROOM = "MAIN"
 _BACKUP_DIR = Path("teamup_rooms")
@@ -78,6 +78,7 @@ def _save_backup(code: str, room: dict) -> None:
                 "pool": [p.__dict__.copy() for p in room["pool"]],
                 "teams_locked": room["teams_locked"],
                 "created": room["created"],
+                "track": room.get("track", DEFAULT_TRACK),
             }, indent=2),
             encoding="utf-8",
         )
@@ -95,9 +96,11 @@ def _ensure_room(code: str) -> dict:
                 "pool": [Profile(**d) for d in saved.get("pool", [])],
                 "teams_locked": saved.get("teams_locked", []),
                 "created": saved.get("created", time.time()),
+                "track": saved.get("track", DEFAULT_TRACK),
             }
         else:
-            rooms[code] = {"pool": [], "teams_locked": [], "created": time.time()}
+            rooms[code] = {"pool": [], "teams_locked": [], "created": time.time(),
+                           "track": DEFAULT_TRACK}
     return rooms[code]
 
 
@@ -132,6 +135,20 @@ def set_room(st, code: str) -> None:
 def room_count(code: str) -> int:
     with _lock():
         return len(_ensure_room(code)["pool"])
+
+
+def get_track(st) -> str:
+    """The goal/track set for the current room (e.g. 'data_science')."""
+    with _lock():
+        return _ensure_room(st.session_state.room).get("track", DEFAULT_TRACK)
+
+
+def set_track(st, key: str) -> None:
+    """Set the room's goal/track so everyone joining sees the same skill list."""
+    with _lock():
+        room = _ensure_room(st.session_state.room)
+        room["track"] = key
+        _save_backup(st.session_state.room, room)
 
 
 # ── mutators (concurrency-safe) ────────────────────────────────────────────────
@@ -284,20 +301,22 @@ def room_sidebar(st) -> None:
 def demo_pool() -> list[Profile]:
     """8 fictional people for trying the matching flow. Never loaded automatically."""
     return [
-        Profile("p1", "Alex", ["Python / coding", "Data / ML"], ["Pitching / presenting"],
+        Profile("p1", "Alex", ["Python", "Machine learning (ML)"],
+                ["Storytelling / presenting results"],
                 ["Weekday evenings", "Weekend daytime"], 12, 3),
-        Profile("p2", "Sam", ["UI/UX design", "Graphics / branding"], ["Python / coding"],
-                ["Weekday evenings", "Weekend daytime"], 8, 3),
-        Profile("p3", "Jess", ["Pitching / presenting", "Writing / storytelling"], [],
-                ["Weekday evenings", "Weekend daytime"], 6, 2),
-        Profile("p4", "Kim", ["Project management", "Market / user research"], [],
-                ["Weekday evenings", "Weekend daytime"], 10, 3),
-        Profile("p5", "Lee", ["Web / frontend"], ["UI/UX design"],
-                ["Weekday mornings", "Weekend daytime"], 5, 1),
-        Profile("p6", "Ravi", ["Finance / modeling", "Market / user research"], [],
+        Profile("p2", "Sam", ["Data visualization / dashboards", "Statistics / hypothesis testing"],
+                ["Python"], ["Weekday evenings", "Weekend daytime"], 8, 3),
+        Profile("p3", "Jess", ["Storytelling / presenting results", "Technical writing / report"],
+                [], ["Weekday evenings", "Weekend daytime"], 6, 2),
+        Profile("p4", "Kim", ["Project coordination / deadlines", "Domain / business knowledge"],
+                [], ["Weekday evenings", "Weekend daytime"], 10, 3),
+        Profile("p5", "Lee", ["SQL / databases", "ETL / data pipelines"],
+                ["Machine learning (ML)"], ["Weekday mornings", "Weekend daytime"], 5, 1),
+        Profile("p6", "Ravi", ["R", "Exploratory data analysis (EDA)"], [],
                 ["Weekday mornings", "Weekend daytime"], 7, 2),
-        Profile("p7", "Mia", ["Python / coding", "Web / frontend"], ["Data / ML"],
+        Profile("p7", "Mia", ["Python", "Feature engineering"], ["Deep learning (NLP / vision)"],
                 ["Weekday mornings", "Weekend daytime"], 9, 2),
-        Profile("p8", "Tom", ["Graphics / branding"], ["Pitching / presenting"],
+        Profile("p8", "Tom", ["Data visualization / dashboards", "Git / GitHub collaboration"],
+                ["Storytelling / presenting results"],
                 ["Weekend daytime", "Flexible / anytime"], 4, 1),
     ]
