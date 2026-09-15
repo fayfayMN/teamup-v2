@@ -157,6 +157,23 @@ REQUIRED_ROLES = ["Build", "Design", "Pitch", "Organize"]
 # Commitment is the #1 silent team killer when mismatched.
 COMMITMENT = {1: "Here to learn", 2: "Will contribute", 3: "Here to win"}
 
+# Student level, least → most advanced. Drives the competition division: a team's
+# division is set by its most advanced member (any grad → Graduate division).
+LEVELS = ["Novice", "Undergraduate", "Graduate"]
+
+
+def team_division(team: List["Profile"]) -> str:
+    """MinneAnalytics-style division from a team's makeup: any Graduate student
+    puts the whole team in Graduate; else any Undergraduate → Undergraduate; else
+    Novice. Returns 'Unspecified' if no one gave a level."""
+    levels = {m.level for m in team if m.level}
+    if not levels:
+        return "Unspecified"
+    for lvl in reversed(LEVELS):          # Graduate, then Undergraduate, then Novice
+        if lvl in levels:
+            return lvl
+    return "Unspecified"
+
 # Availability is matched as set overlap (Jaccard), so broad buckets beat a
 # day-by-day grid: they're faster to pick and far more likely to overlap. Keep
 # this the single source of truth — the Join/Fixed-Team pages and demo data all
@@ -182,6 +199,9 @@ class Profile:
     availability: List[str] = field(default_factory=list)   # e.g. ["mon-eve", "sat-day"]
     hours_per_week: int = 5
     commitment: int = 2                                     # 1-3, see COMMITMENT
+    level: str = ""                                         # "" | one of LEVELS (for divisions)
+    major: str = ""                                         # free text (for blended teams)
+    school: str = ""                                        # college/university (optional)
 
     def roles(self) -> set:
         return {SKILL_TO_ROLE[s] for s in self.skills if s in SKILL_TO_ROLE}
@@ -283,6 +303,13 @@ def _team_quality(team: List[Profile], required: List[str]) -> float:
         for i, a in enumerate(team) for b in team[i + 1:]
     ]
     cohesion = sum(overlaps) / len(overlaps) if overlaps else 1.0
+
+    # Blended teams (mixed majors) are encouraged. Only weigh it when majors were
+    # collected, so behaviour is unchanged for pools that don't use majors.
+    majors = [m.major.strip().lower() for m in team if m.major.strip()]
+    if majors:
+        major_div = len(set(majors)) / len(majors)   # 1.0 = every major distinct
+        return 0.42 * role_frac + 0.26 * avg_commit + 0.16 * cohesion + 0.16 * major_div
     return 0.5 * role_frac + 0.3 * avg_commit + 0.2 * cohesion
 
 
@@ -379,6 +406,7 @@ def summarize_team(team: List[Profile], required: List[str] = None) -> Dict:
     cohesion = round(sum(overlaps) / len(overlaps), 2) if overlaps else 1.0
 
     commits = [m.commitment for m in team]
+    majors = sorted({m.major.strip() for m in team if m.major.strip()})
     return {
         "members": team,
         "covered_roles": sorted(covered),
@@ -386,6 +414,9 @@ def summarize_team(team: List[Profile], required: List[str] = None) -> Dict:
         "schedule_cohesion": cohesion,
         "commitment_spread": max(commits) - min(commits) if commits else 0,
         "avg_commitment": round(sum(commits) / len(commits), 1) if commits else 0,
+        "division": team_division(team),
+        "majors": majors,
+        "size": len(team),
     }
 
 

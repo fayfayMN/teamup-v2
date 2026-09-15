@@ -6,8 +6,8 @@ from teamup.store import (init_state, room_sidebar, add_profile, add_many,
                           clear_room, remove_profile, is_organizer, demo_pool,
                           get_track, set_track)
 from teamup.report import roster_csv
-from teamup.match import (Profile, COMMITMENT, AVAILABILITY, TRACKS, TRACK_LABELS,
-                          track_key_by_label, skills_for)
+from teamup.match import (Profile, COMMITMENT, AVAILABILITY, LEVELS, TRACKS,
+                          TRACK_LABELS, track_key_by_label, skills_for)
 
 st.set_page_config(page_title="Join · TeamUp", page_icon="✍️", layout="wide")
 init_state(st)
@@ -40,6 +40,16 @@ with st.form("join", clear_on_submit=True):
     name = st.text_input("Name")
     skills = st.multiselect("What you're good at (pick your real strengths)", track_skills)
     learn = st.multiselect("What you want to learn (optional)", track_skills)
+
+    lc, mc = st.columns(2)
+    level = lc.selectbox(
+        "Your level", ["—"] + LEVELS,
+        help="Sets the competition division. A team with any Graduate student "
+             "competes in the Graduate division; else Undergraduate; else Novice.")
+    major = mc.text_input("Your major / department",
+                          placeholder="e.g. Statistics, CS, Economics")
+    school = st.text_input("Your college / university (optional)",
+                           placeholder="e.g. University of Minnesota")
 
     st.markdown("**When you're available** — tick the broad times that fit; no need to be exact")
     avail_preset = st.multiselect(
@@ -76,6 +86,8 @@ if submitted:
         ok = add_profile(st, Profile(
             id=pid, name=name, skills=skills, wants_to_learn=learn,
             availability=avail, hours_per_week=hours, commitment=commit,
+            level=("" if level == "—" else level),
+            major=major.strip(), school=school.strip(),
         ))
         if ok:
             st.success(f"Added {name} to room {st.session_state.room}. "

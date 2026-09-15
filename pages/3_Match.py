@@ -74,21 +74,39 @@ if balanced:
     st.caption(f"**{n_people} people in the pool → {n_teams} balanced teams** of "
                f"{size_desc} each. The split re-adapts to whoever's joined — just click "
                "**Form teams** again after the last person is in.")
+
+    separate_div = st.checkbox(
+        "Keep divisions separate (Graduate / Undergraduate / Novice each in their own teams)",
+        value=False,
+        help="On: students only team up with others of their own level, so novices "
+             "can compete in the Novice division. Off: mixed teams allowed, and each "
+             "team's division is set by its most advanced member.")
 else:
     size = st.slider("Target team size", 2, 6, 4)
     st.caption(f"{n_people} people → about {-(-n_people // size)} teams of {size}.")
+    separate_div = False
 
 can_form = is_organizer(st)
 if not can_form:
     st.info("🔒 Forming/locking teams is organizer-only. Unlock in the sidebar to proceed.")
 
 if st.button("Form teams", type="primary", disabled=not can_form):
-    if balanced:
+    pool = st.session_state.pool
+    if balanced and separate_div:
+        # Form balanced teams within each level group, then combine.
+        groups: dict = {}
+        for p in pool:
+            groups.setdefault(p.level or "Unspecified", []).append(p)
+        result = []
+        for lvl, members in groups.items():
+            g_teams = max(1, round(int(n_teams) * len(members) / len(pool)))
+            result += form_balanced_teams(members, g_teams, required=required)
+        st.session_state._teams = result
+    elif balanced:
         st.session_state._teams = form_balanced_teams(
-            st.session_state.pool, int(n_teams), required=required)
+            pool, int(n_teams), required=required)
     else:
-        st.session_state._teams = form_teams(
-            st.session_state.pool, team_size=size, required=required)
+        st.session_state._teams = form_teams(pool, team_size=size, required=required)
 
 teams = st.session_state.get("_teams")
 if not teams:
@@ -112,10 +130,41 @@ if len(teams) > 1:
         st.warning("⚠️ Uneven — some teams are much stronger than others. "
                    "Switch to **Even & balanced** mode and re-form for fairer teams.")
 
+# Deterministic rules check — no AI needed; these are all checkable facts.
+with st.expander("📋 Competition rules check", expanded=True):
+    from collections import Counter
+    oversize = [i + 1 for i, t in enumerate(teams) if t["size"] > 5]
+    if oversize:
+        st.error(f"⚠️ Over the 5-student limit: Team(s) {oversize}. "
+                 "Set 'aim for a team size' = 5 (or add teams) and re-form.")
+    else:
+        st.success("✅ Every team has 5 or fewer students (competition limit).")
+    st.markdown("- **One team per student** — guaranteed; each person is on exactly one team.")
+    st.markdown("- **Faculty/staff advisor** — required per team. The app matches *students*; "
+                "attach one advisor to each team below (they register separately).")
+    divs = Counter(t["division"] for t in teams)
+    st.markdown("- **Divisions** (auto-set by each team's most advanced student): "
+                + ", ".join(f"**{n}** {d}" for d, n in divs.items()))
+    if any(t["majors"] for t in teams):
+        single = [i + 1 for i, t in enumerate(teams) if len(t["majors"]) == 1]
+        st.markdown("- **Blended majors** are encouraged — "
+                    + (f"single-major team(s): {single}." if single
+                       else "every team already mixes majors. ✅"))
+    else:
+        st.caption("Tip: collect **major** on the Join page and the balancer will also "
+                   "mix majors (blended teams are encouraged).")
+
 for i, t in enumerate(teams, 1):
     with st.container(border=True):
         names = ", ".join(m.name for m in t["members"])
         st.markdown(f"#### Team {i} — {names}")
+
+        meta = f"👥 {t['size']} students · 🏅 {t['division']} division"
+        if t["majors"]:
+            meta += " · 🎓 " + ", ".join(t["majors"])
+        st.caption(meta)
+        if t["size"] > 5:
+            st.error("⚠️ Over the 5-student competition limit — drop or move one member.")
 
         cols = st.columns(3)
         cols[0].metric("Schedule cohesion", f"{t['schedule_cohesion']:.0%}")
@@ -141,8 +190,14 @@ for i, t in enumerate(teams, 1):
 
         with st.expander("Members"):
             for m in t["members"]:
-                st.write(f"- **{m.name}** — {', '.join(sorted(m.roles())) or 'no role tags'} "
-                         f"· {COMMITMENT[m.commitment]} · {', '.join(m.availability)}")
+                extra = " · ".join(x for x in [
+                    getattr(m, "level", ""), getattr(m, "major", ""),
+                    getattr(m, "school", "")] if x)
+                line = (f"- **{m.name}** — {', '.join(sorted(m.roles())) or 'no role tags'} "
+                        f"· {COMMITMENT[m.commitment]} · {', '.join(m.availability)}")
+                if extra:
+                    line += f"  \n  <small>{extra}</small>"
+                st.markdown(line, unsafe_allow_html=True)
 
 # Download the proposed teams so the organizer can share them anywhere.
 st.download_button(
